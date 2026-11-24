@@ -151,6 +151,8 @@ GpuTempFloat/
 ├─ 安装依赖.bat
 ├─ 打包exe.bat                   一键打包成单文件 exe
 ├─ GpuTempFloat.spec             打包配置（剔除无用 Qt 运行时 + UPX）
+├─ requirements-build.txt        CI/打包依赖版本锁定
+├─ .github/workflows/release.yml 打 tag 自动构建并发 Release
 ├─ make_icon.py                  生成 assets\app.ico（打包用图标）
 ├─ assets/app.ico
 ├─ GpuTempFloat.exe              打包产物 24.7 MB（可脱离 Python 直接双击运行）
@@ -189,6 +191,32 @@ GpuTempFloat/
 - 打包失败时看 `build\GpuTempFloat\warn-GpuTempFloat.txt`
 - **不要同时运行 exe 和源码版**：两者会抢同一组全局热键（Ctrl+Alt+G/H/Q），后启动的热键注册会失败
 - 少数杀软会对 UPX 压缩过的 DLL 报可疑（误报），介意的话把 spec 里 `upx=use_upx` 改成 `upx=False` 重打即可，体积回到约 34 MB
+
+## 自动发布到 GitHub Release
+
+`.github/workflows/release.yml` 会在 GitHub 的 `windows-latest` 机器上把 exe 打出来并自动发版，本地不用开电脑。
+
+**发版方式一：打 tag（推荐）**
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+→ Actions 自动跑：装 `PySide6-Essentials==6.9.1` + `PyInstaller 6.22.3` → 下载 UPX 4.2.4 →
+`PyInstaller GpuTempFloat.spec` → 生成 Release，标题 `GpuTempFloat 1.2.0`，
+附件 `GpuTempFloat-1.2.0-win64.exe` + 同名 `.sha256`，Release 说明里附哈希值。
+
+**发版方式二：手动触发**
+
+仓库 Actions → Release → Run workflow，填 tag（留空则自动生成 `nightly-YYYYMMDD-<构建号>`），可勾选预发布。
+
+工作流要点：
+
+- 依赖锁定在 `requirements-build.txt`，与本地 `打包exe.bat` 保持一致（pip 走缓存加速）
+- UPX 从官方 release 下载，缺失时 spec 会自动跳过压缩（体积回到约 34 MB，不影响能跑）
+- 权限只需 `contents: write`；同一 ref 并发只保留最新一次（`concurrency`）
+- 只发 GitHub Release **不**覆盖仓库里已提交的 `GpuTempFloat.exe`，两者互不影响
 
 ## 想改参数
 
