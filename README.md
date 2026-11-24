@@ -56,6 +56,25 @@
 
 配置文件里对应 `"no_bg": true / false`，重启后保留。
 
+## 语言 / Language
+
+中英双语，右键 → **语言 / Language** → 中文 / English，立即切换并记住（`config.json` 的 `"lang": "zh" | "en"`）。
+
+切的是整套界面的文案，不是只换数字单位：
+
+| 位置 | 中文 | English |
+| --- | --- | --- |
+| 详情行 | 热点 63° 显存 72° 51W | Hotspot 63° VRAM 72° 51W |
+| 迷你行（缩写） | 热点 63° 显存 72° | Hot 63° VRAM 72° |
+| 风扇（标准模式） | 风扇 39% | Fan 39% |
+| 右键菜单 | 点击穿透 / 背景与透明度 / 尺寸 / 刷新间隔 / 退出 | Click-through / Background & opacity / Size / Refresh interval / Quit |
+| 透明度气泡 | 背景不透明度 · 拖动即时生效，松开即保存 | Background opacity · Live preview, saved on release |
+| 托盘菜单 / 悬停提示 | 隐藏悬浮窗 · 解除鼠标穿透 · 退出 | Hide overlay · Disable click-through · Quit |
+| 状态气泡 | 穿透中 · Ctrl+Alt+G 解除 | Ctrl+Alt+G to release |
+
+英文文案偏长时会自动缩小气泡字号（7–11px 自适应），不会被卡片宽度裁掉。
+文本集中在 `gpu_temp_float.py` 顶部的 `I18N` 字典，加语言/改词只需往字典里加一列。
+
 ## 操作
 
 | 操作 | 效果 |

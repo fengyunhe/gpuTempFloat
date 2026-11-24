@@ -42,12 +42,124 @@ DEFAULT_CONFIG = {
     "y": None,
     "opacity": 0.88,
     "no_bg": False,        # 无背景模式：只留文字（带描边），适合叠在游戏画面上
-    "size_mode": "compact",  # compact = 小尺寸卡片；normal = 标准尺寸
+    "size_mode": "compact",  # mini / compact / normal
+    "lang": "zh",          # zh = 中文界面，en = English UI
     "interval": 1000,      # 毫秒
     "click_through": False,
     "always_on_top": True,
     "show_detail": True,   # 显示热点/显存/功耗/频率
 }
+
+# 中英双语文案（code 里只写 key，界面按 config["lang"] 取）
+I18N = {
+    "zh": {
+        "app_tip": "GPU 温度悬浮窗",
+        "reading": "核心温度 · 读取中",
+        "adl_no_gpu": "未找到 AMD 显卡",
+        "lang_name": "语言",
+        "lang_zh": "中文",
+        "lang_en": "English",
+        "menu_click_through": "点击穿透（Ctrl+Alt+G）",
+        "menu_top": "始终置顶",
+        "menu_bg": "背景与透明度",
+        "menu_no_bg": "无背景模式（仅文字）",
+        "menu_opacity": "调节透明度（滑块）…  当前 {p}%",
+        "menu_size": "尺寸",
+        "size_mini": "迷你（单行 {w}×{h}）",
+        "size_compact": "紧凑（{w}×{h}）",
+        "size_normal": "标准（{w}×{h}）",
+        "menu_interval": "刷新间隔",
+        "sec": "{v} 秒",
+        "menu_quit": "退出（Ctrl+Alt+Q）",
+        "flash_no_bg_on": "无背景模式（仅文字）",
+        "flash_no_bg_off": "已恢复背景",
+        "flash_mini": "迷你单行",
+        "flash_compact": "紧凑尺寸",
+        "flash_normal": "标准尺寸",
+        "flash_switched": "已切换",
+        "opacity_title": "背景不透明度",
+        "opacity_tip": "拖动即时生效，松开即保存",
+        "fan": "风扇 ",
+        "hotspot": "热点 ",
+        "hotspot_short": "热点 ",
+        "mem": "显存 ",
+        "mem_short": "显存 ",
+        "load": "负载 ",
+        "pass_on": "穿透中 · Ctrl+Alt+G 解除",
+        "pass_off": "已退出穿透",
+        "pass_suffix": " · 穿透中",
+        "read_fail": "读取失败：{e}",
+        "read_error": "读取异常：{e}",
+        "tray_show": "隐藏悬浮窗",
+        "tray_hide": "显示悬浮窗",
+        "tray_ct_on": "解除鼠标穿透",
+        "tray_ct_off": "开启鼠标穿透",
+        "tray_top": "始终置顶",
+        "tray_quit": "退出",
+        "tray_live": "GPU {t}°C{s}\nCtrl+Alt+G 穿透 / Ctrl+Alt+H 显隐 / 右键托盘退出",
+    },
+    "en": {
+        "app_tip": "GPU temperature overlay",
+        "reading": "Core temp · reading…",
+        "adl_no_gpu": "No AMD GPU found",
+        "lang_name": "Language",
+        "lang_zh": "中文",
+        "lang_en": "English",
+        "menu_click_through": "Click-through (Ctrl+Alt+G)",
+        "menu_top": "Always on top",
+        "menu_bg": "Background && opacity",   # QAction 里 "&&" 才显示为 &，单个 & 会被当成助记符
+        "menu_no_bg": "Text only (no background)",
+        "menu_opacity": "Opacity slider…  now {p}%",
+        "menu_size": "Size",
+        "size_mini": "Mini (single line {w}×{h})",
+        "size_compact": "Compact ({w}×{h})",
+        "size_normal": "Standard ({w}×{h})",
+        "menu_interval": "Refresh interval",
+        "sec": "{v} s",
+        "menu_quit": "Quit (Ctrl+Alt+Q)",
+        "flash_no_bg_on": "Text-only mode",
+        "flash_no_bg_off": "Background restored",
+        "flash_mini": "Mini single line",
+        "flash_compact": "Compact size",
+        "flash_normal": "Standard size",
+        "flash_switched": "Size changed",
+        "opacity_title": "Background opacity",
+        "opacity_tip": "Live preview · saved on release",
+        "fan": "Fan ",
+        "hotspot": "Hotspot ",
+        "hotspot_short": "Hot ",
+        "mem": "VRAM ",
+        "mem_short": "VRAM ",
+        "load": "Load ",
+        "pass_on": "Ctrl+Alt+G to release",
+        "pass_off": "Click-through off",
+        "pass_suffix": " · click-through",
+        "read_fail": "Read failed: {e}",
+        "read_error": "Read error: {e}",
+        "tray_show": "Hide overlay",
+        "tray_hide": "Show overlay",
+        "tray_ct_on": "Disable click-through",
+        "tray_ct_off": "Enable click-through",
+        "tray_top": "Always on top",
+        "tray_quit": "Quit",
+        "tray_live": "GPU {t}°C{s}\nCtrl+Alt+G click-through / Ctrl+Alt+H hide / right-click tray to quit",
+    },
+}
+
+
+def tr(cfg, key, **kw):
+    """按当前语言取文案，缺 key 时回落到中文，再回落到 key 本身"""
+    lang = (cfg or {}).get("lang", "zh")
+    table = I18N.get(lang) or I18N["zh"]
+    text = table.get(key)
+    if text is None:
+        text = I18N["zh"].get(key, key)
+    if kw:
+        try:
+            text = text.format(**kw)
+        except Exception:
+            pass
+    return text
 
 # 三种尺寸的参数：mini 单行 / compact 小卡片 / normal 标准卡片
 SIZE_MODES = {
@@ -471,8 +583,9 @@ class OverlayCard(QWidget):
         self.cfg = cfg
         self._drag_offset = None
         self._data = {}
-        self._reader_name = "初始化中…"
+        self._reader_name = ""
         self.on_interval_change = None
+        self.on_lang_change = None
 
         self.setWindowTitle("GPU Temp")
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -522,7 +635,7 @@ class OverlayCard(QWidget):
         row1.addWidget(self.lbl_fan)
         root.addLayout(row1)
 
-        self.lbl_detail = OutlineLabel("核心温度 · 读取中")
+        self.lbl_detail = OutlineLabel(tr(self.cfg, "reading"))
         self.lbl_detail.setWordWrap(False)
         root.addWidget(self.lbl_detail)
 
@@ -542,7 +655,16 @@ class OverlayCard(QWidget):
 
     def _flash(self, text):
         self.hint.setText(text)
-        self.hint.adjustSize()
+        # 卡片窄 / 英文提示较长时自动缩字号，避免被窗口裁掉
+        px = 11
+        for _ in range(5):
+            self.hint.setStyleSheet(
+                "background: rgba(0,0,0,0.82); color: #ffc857; border-radius: 6px;"
+                f"padding: 2px 7px; font-size: {px}px;")
+            self.hint.adjustSize()
+            if self.hint.width() <= self.width() - 6:
+                break
+            px -= 1
         # 卡片很矮时贴底会溢出，改为垂直居中
         if self.height() - self.hint.height() - 6 < 2:
             y = max(0, (self.height() - self.hint.height()) // 2)
@@ -640,7 +762,7 @@ class OverlayCard(QWidget):
         self.cfg["no_bg"] = not self.cfg.get("no_bg", False)
         save_config(self.cfg)
         self._apply_visual_mode()
-        self._flash("无背景模式（仅文字）" if self.cfg["no_bg"] else "已恢复背景")
+        self._flash(tr(self.cfg, "flash_no_bg_on") if self.cfg["no_bg"] else tr(self.cfg, "flash_no_bg_off"))
 
     def _set_size_mode(self, mode_name):
         if mode_name == self.cfg.get("size_mode"):
@@ -655,7 +777,19 @@ class OverlayCard(QWidget):
         y = min(self.y(), screen.bottom() - self.height())
         self.move(max(screen.left(), x), max(screen.top(), y))
         self._save_pos()
-        self._flash({"mini": "迷你单行", "compact": "紧凑尺寸", "normal": "标准尺寸"}.get(mode_name, "已切换"))
+        self._flash(tr(self.cfg, {"mini": "flash_mini", "compact": "flash_compact",
+                                  "normal": "flash_normal"}.get(mode_name, "flash_switched")))
+
+    def _set_lang(self, lang):
+        if lang == self.cfg.get("lang"):
+            return
+        self.cfg["lang"] = lang
+        save_config(self.cfg)
+        self.lbl_detail.setText(tr(self.cfg, "reading"))
+        self.update_data(self._data, self._reader_name)
+        self._flash(tr(self.cfg, "lang_en") if lang == "en" else tr(self.cfg, "lang_zh"))
+        if self.on_lang_change:
+            self.on_lang_change(lang)
 
     # ---- 透明度滑块（不预设固定档位，30%~100% 连续可调）----
     def _show_opacity_popup(self):
@@ -672,7 +806,7 @@ class OverlayCard(QWidget):
         box.setContentsMargins(12, 9, 12, 10)
         box.setSpacing(6)
 
-        lbl = QLabel(f"背景不透明度  {int(round(self.cfg.get('opacity', 0.88) * 100))}%")
+        lbl = QLabel(f"{tr(self.cfg, 'opacity_title')}  {int(round(self.cfg.get('opacity', 0.88) * 100))}%")
         lbl.setStyleSheet("color: #eaeaea; font-size: 12px; background: transparent;")
         box.addWidget(lbl)
 
@@ -686,13 +820,13 @@ class OverlayCard(QWidget):
             "background:#ffffff;}")
         box.addWidget(sld)
 
-        tip = QLabel("拖动即时生效，松开即保存")
+        tip = QLabel(tr(self.cfg, "opacity_tip"))
         tip.setStyleSheet("color: #8b9097; font-size: 10px; background: transparent;")
         box.addWidget(tip)
 
         def on_move(v):
             self.cfg["opacity"] = v / 100.0
-            lbl.setText(f"背景不透明度  {v}%")
+            lbl.setText(f"{tr(self.cfg, 'opacity_title')}  {v}%")
             self.repaint()
 
         def on_commit():
@@ -730,7 +864,7 @@ class OverlayCard(QWidget):
 
         fan = data.get("fan_pct")
         short = self._mode().get("short_fan", False)
-        prefix = "" if short else "风扇 "
+        prefix = "" if short else tr(self.cfg, "fan")
         if fan is not None:
             self.lbl_fan.setText(f"{prefix}{fan}%")
         elif data.get("fan_rpm") is not None:
@@ -740,16 +874,17 @@ class OverlayCard(QWidget):
 
         bits = []
         fields = self._mode()["fields"]
+        single = self._mode().get("single_row", False)
         if self.cfg.get("show_detail", True):
             if "hotspot" in fields and data.get("hotspot") is not None:
-                bits.append(f"热点 {data['hotspot']}°")
+                bits.append(f"{tr(self.cfg, 'hotspot_short' if single else 'hotspot')}{data['hotspot']}°")
             if "mem" in fields and data.get("mem") is not None:
-                bits.append(f"显存 {data['mem']}°")
+                bits.append(f"{tr(self.cfg, 'mem_short' if single else 'mem')}{data['mem']}°")
             if "power" in fields and data.get("power") is not None:
                 bits.append(f"{data['power']}W")
             if "load" in fields and data.get("load") is not None:
-                bits.append(f"负载 {data['load']}%")
-        text = "  ".join(bits) if bits else self._reader_name
+                bits.append(f"{tr(self.cfg, 'load')}{data['load']}%")
+        text = "  ".join(bits) if bits else (self._reader_name or tr(self.cfg, "reading"))
         self.lbl_detail.setText(text)
         self.lbl_inline.setText(text.replace("  ", " "))
         self.lbl_inline.setVisible(self._mode().get("single_row", False)
@@ -800,48 +935,62 @@ class OverlayCard(QWidget):
                 self.move(x, y)
 
     def _show_menu(self, pos):
+        menu = self.build_menu()
+        menu.exec(pos)
+
+    def build_menu(self):
         menu = QMenu(self)
         menu.setStyleSheet(
             "QMenu{background:#1b1c20;color:#eaeaea;border:1px solid #333;padding:4px;}"
             "QMenu::item{padding:6px 18px;}QMenu::item:selected{background:#2d2f36;}")
 
-        ct = QAction(("✔ " if self.cfg["click_through"] else "") + "点击穿透（Ctrl+Alt+G）", menu)
+        ct = QAction(("✔ " if self.cfg["click_through"] else "") + tr(self.cfg, "menu_click_through"), menu)
         ct.triggered.connect(lambda: self.toggle_click_through())
         menu.addAction(ct)
 
-        top = QAction(("✔ " if self.cfg["always_on_top"] else "") + "始终置顶", menu)
+        top = QAction(("✔ " if self.cfg["always_on_top"] else "") + tr(self.cfg, "menu_top"), menu)
         top.triggered.connect(self._toggle_top)
         menu.addAction(top)
 
-        op = menu.addMenu("背景与透明度")
-        nb = QAction(("✔ " if self.cfg.get("no_bg") else "") + "无背景模式（仅文字）", menu)
+        op = menu.addMenu(tr(self.cfg, "menu_bg"))
+        nb = QAction(("✔ " if self.cfg.get("no_bg") else "") + tr(self.cfg, "menu_no_bg"), menu)
         nb.triggered.connect(self._toggle_no_bg)
         op.addAction(nb)
         op.addSeparator()
-        sl = QAction(f"调节透明度（滑块）…  当前 {int(round(self.cfg.get('opacity', 0.88) * 100))}%", menu)
+        sl = QAction(tr(self.cfg, "menu_opacity",
+                        p=int(round(self.cfg.get("opacity", 0.88) * 100))), menu)
         sl.triggered.connect(self._show_opacity_popup)
         op.addAction(sl)
 
-        sm = menu.addMenu("尺寸")
-        for label, key in (("迷你（单行 176×32）", "mini"),
-                           ("紧凑（168×58）", "compact"),
-                           ("标准（212×100）", "normal")):
-            a = QAction(("✔ " if self.cfg.get("size_mode", "compact") == key else "") + label, menu)
+        sm = menu.addMenu(tr(self.cfg, "menu_size"))
+        cur_mode = self.cfg.get("size_mode", "compact")
+        for key, label_key in (("mini", "size_mini"), ("compact", "size_compact"), ("normal", "size_normal")):
+            m = SIZE_MODES[key]
+            label = tr(self.cfg, label_key, w=m["size"][0], h=m["size"][1])
+            a = QAction(("✔ " if cur_mode == key else "") + label, menu)
             a.triggered.connect(lambda _=False, k=key: self._set_size_mode(k))
             sm.addAction(a)
 
-        it = menu.addMenu("刷新间隔")
-        for label, v in (("0.5 秒", 500), ("1 秒", 1000), ("2 秒", 2000)):
+        it = menu.addMenu(tr(self.cfg, "menu_interval"))
+        for label, v in ((tr(self.cfg, "sec", v="0.5"), 500),
+                         (tr(self.cfg, "sec", v="1"), 1000),
+                         (tr(self.cfg, "sec", v="2"), 2000)):
             a = QAction(("✔ " if self.cfg["interval"] == v else "") + label, menu)
             a.triggered.connect(lambda _=False, vv=v: self._set_interval(vv))
             it.addAction(a)
 
+        lm = menu.addMenu("语言 / Language")
+        for label, key in (("中文", "zh"), ("English", "en")):
+            a = QAction(("✔ " if self.cfg.get("lang", "zh") == key else "") + label, menu)
+            a.triggered.connect(lambda _=False, k=key: self._set_lang(k))
+            lm.addAction(a)
+
         menu.addSeparator()
-        quit_a = QAction("退出（Ctrl+Alt+Q）", menu)
+        quit_a = QAction(tr(self.cfg, "menu_quit"), menu)
         quit_a.triggered.connect(QApplication.instance().quit)
         menu.addAction(quit_a)
 
-        menu.exec(pos)
+        return menu
 
     def _toggle_top(self):
         self.cfg["always_on_top"] = not self.cfg["always_on_top"]
@@ -867,9 +1016,9 @@ class OverlayCard(QWidget):
         apply_win32_styles(int(self.winId()), self.cfg["click_through"])
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, self.cfg["click_through"])
         if self.cfg["click_through"]:
-            self._flash("穿透中 · Ctrl+Alt+G 解除")
+            self._flash(tr(self.cfg, "pass_on"))
         else:
-            self._flash("已退出穿透")
+            self._flash(tr(self.cfg, "pass_off"))
         self.update()
 
     def showEvent(self, e):
@@ -904,6 +1053,7 @@ class Monitor(QObject):
         self.cfg = load_config()
         self.card = OverlayCard(self.cfg)
         self.card.on_interval_change = lambda v: self.timer.start(v)
+        self.card.on_lang_change = lambda _l: self._apply_lang_to_tray()
 
         self.reader, self.error = make_reader()
 
@@ -930,34 +1080,51 @@ class Monitor(QObject):
         self._setup_tray()
 
         if self.reader is None:
-            self.card.update_data({}, "读取失败：{}".format(self.error))
+            self.card.update_data({}, tr(self.card.cfg, "read_fail", e=self.error))
         self.card.show()
+        self.refresh()
+
+    def _apply_lang_to_tray(self):
+        """语言切换后刷新托盘文案"""
+        if self._tray is None:
+            return
+        cfg = self.card.cfg
+        self._tray.setToolTip(tr(cfg, "app_tip"))
+        if self._a_show is not None:
+            self._a_show.setText(tr(cfg, "tray_show") if self.card.isVisible() else tr(cfg, "tray_hide"))
+        if self._a_ct is not None:
+            self._a_ct.setText(tr(cfg, "tray_ct_on") if cfg.get("click_through") else tr(cfg, "tray_ct_off"))
+        if self._a_top is not None:
+            self._a_top.setText(tr(cfg, "tray_top"))
+        if self._a_quit is not None:
+            self._a_quit.setText(tr(cfg, "tray_quit"))
         self.refresh()
 
     def _setup_tray(self):
         """托盘图标：穿透模式下窗口点不到，这里始终留一条退路"""
+        cfg = self.card.cfg
         self._tray = QSystemTrayIcon(make_tray_icon(), self)
-        self._tray.setToolTip("GPU 温度悬浮窗")
+        self._tray.setToolTip(tr(cfg, "app_tip"))
 
         menu = QMenu()
-        self._a_show = QAction("隐藏悬浮窗", menu)
+        self._a_show = QAction(tr(cfg, "tray_show"), menu)
         self._a_show.triggered.connect(self._toggle_card)
         menu.addAction(self._a_show)
 
-        self._a_ct = QAction("解除鼠标穿透", menu)
+        self._a_ct = QAction(tr(cfg, "tray_ct_on"), menu)
         self._a_ct.triggered.connect(self.card.toggle_click_through)
         menu.addAction(self._a_ct)
 
-        self._a_top = QAction("始终置顶", menu)
+        self._a_top = QAction(tr(cfg, "tray_top"), menu)
         self._a_top.setCheckable(True)
         self._a_top.setChecked(self.cfg.get("always_on_top", True))
         self._a_top.triggered.connect(self._toggle_top)
         menu.addAction(self._a_top)
 
         menu.addSeparator()
-        qa = QAction("退出", menu)
-        qa.triggered.connect(QApplication.instance().quit)
-        menu.addAction(qa)
+        self._a_quit = QAction(tr(cfg, "tray_quit"), menu)
+        self._a_quit.triggered.connect(QApplication.instance().quit)
+        menu.addAction(self._a_quit)
 
         menu.aboutToShow.connect(self._refresh_tray_menu)
         self._tray_menu = menu
@@ -966,10 +1133,12 @@ class Monitor(QObject):
         self._tray.show()
 
     def _refresh_tray_menu(self):
-        ct = self.card.cfg.get("click_through", False)
-        self._a_ct.setText("解除鼠标穿透" if ct else "开启鼠标穿透")
-        self._a_show.setText("隐藏悬浮窗" if self.card.isVisible() else "显示悬浮窗")
-        self._a_top.setChecked(self.card.cfg.get("always_on_top", True))
+        cfg = self.card.cfg
+        ct = cfg.get("click_through", False)
+        self._a_ct.setText(tr(cfg, "tray_ct_on") if ct else tr(cfg, "tray_ct_off"))
+        self._a_show.setText(tr(cfg, "tray_show") if self.card.isVisible() else tr(cfg, "tray_hide"))
+        self._a_top.setText(tr(cfg, "tray_top"))
+        self._a_top.setChecked(cfg.get("always_on_top", True))
 
     def _on_tray_activated(self, reason):
         if reason in (QSystemTrayIcon.ActivationReason.Trigger,
@@ -1019,12 +1188,11 @@ class Monitor(QObject):
             data = self.reader.read()
             self.card.update_data(data, None)
             if self._tray is not None:
-                edge = data.get("edge")
-                ct = " · 穿透中" if self.card.cfg.get("click_through") else ""
-                self._tray.setToolTip(
-                    f"GPU {edge}°C{ct}\nCtrl+Alt+G 穿透 / Ctrl+Alt+H 显隐 / 右键托盘退出")
+                cfg = self.card.cfg
+                ct = tr(cfg, "pass_suffix") if cfg.get("click_through") else ""
+                self._tray.setToolTip(tr(cfg, "tray_live", t=data.get("edge"), s=ct))
         except Exception as e:
-            self.card.update_data({}, f"读取异常：{e}")
+            self.card.update_data({}, tr(self.card.cfg, "read_error", e=e))
 
 
 def main():
