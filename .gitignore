@@ -2,12 +2,33 @@
 build/
 dist/
 *.spec.bak
+*.manifest
 
 # 运行/打包用的本地环境
 venv/
+.venv/
 buildenv/
 __pycache__/
-*.pyc
+*.py[cod]
 
 # UPX 二进制（打包脚本检测不到会自动下载）
 tools/upx/
+
+# 临时/调试产物
+*.log
+*.tmp
+*.bak
+*.orig
+*.rej
+*.pid
+preview_*.tmp.png
+gtf_*.png
+screen_now.png
+
+# 编辑器与系统杂项
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
