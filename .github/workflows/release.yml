@@ -82,6 +82,7 @@ jobs:
           "version=$version"     | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
           "asset=$asset"         | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
           "sha256=$hash"         | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "size_mb=$size"        | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "tag=$tag version=$version asset=$asset size=${size}MB"
 
       - name: Publish release
@@ -96,7 +97,7 @@ jobs:
           body: |
             Windows x64 单文件绿色版，双击即用，无需安装 Python。
 
-            - **下载**：`${{ steps.pack.outputs.asset }}`（精简 Qt 运行时 + UPX 压缩，约 25 MB）
+            - **下载**：`${{ steps.pack.outputs.asset }}`（${{ steps.pack.outputs.size_mb }} MB，精简 Qt 运行时 + UPX 压缩）
             - **校验**：`sha256 = ${{ steps.pack.outputs.sha256 }}`
             - **右键菜单**可切换 中文 / English、穿透、透明度滑块、迷你单行模式
             - 全局热键：`Ctrl+Alt+G` 开关穿透、`Ctrl+Alt+H` 显隐、`Ctrl+Alt+Q` 退出
@@ -104,3 +105,14 @@ jobs:
           files: |
             ${{ steps.pack.outputs.asset }}
             ${{ steps.pack.outputs.asset }}.sha256
+
+      - name: Upload build diagnostics (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-warn-${{ github.run_number }}
+          path: |
+            build/GpuTempFloat/warn-GpuTempFloat.txt
+            dist/
+          if-no-files-found: ignore
+          retention-days: 7
