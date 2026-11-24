@@ -1,0 +1,13 @@
+# 打包中间产物（每次 PyInstaller 都会重建）
+build/
+dist/
+*.spec.bak
+
+# 运行/打包用的本地环境
+venv/
+buildenv/
+__pycache__/
+*.pyc
+
+# UPX 二进制（打包脚本检测不到会自动下载）
+tools/upx/
