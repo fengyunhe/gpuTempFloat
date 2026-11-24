@@ -49,8 +49,23 @@ DEFAULT_CONFIG = {
     "show_detail": True,   # 显示热点/显存/功耗/频率
 }
 
-# 两种尺寸的参数：紧凑模式约 148x58（150% 缩放后约 222x87 物理像素）
+# 三种尺寸的参数：mini 单行 / compact 小卡片 / normal 标准卡片
 SIZE_MODES = {
+    "mini": {
+        "size": (172, 34),
+        "margins": (7, 0, 8, 0),
+        "spacing": 0,
+        "temp_pt": 15,
+        "deg_px": 8,
+        "fan_px": 9,
+        "detail_px": 9,
+        "bar_h": 0,
+        "outline_px": 1,
+        "radius": 9,
+        "fields": ("hotspot", "mem"),
+        "short_fan": True,
+        "single_row": True,
+    },
     "compact": {
         "size": (168, 58),
         "margins": (7, 5, 7, 4),
@@ -64,6 +79,7 @@ SIZE_MODES = {
         "radius": 9,
         "fields": ("hotspot", "mem", "power"),
         "short_fan": True,
+        "single_row": False,
     },
     "normal": {
         "size": (212, 100),
@@ -78,6 +94,7 @@ SIZE_MODES = {
         "radius": 12,
         "fields": ("hotspot", "mem", "power", "load"),
         "short_fan": False,
+        "single_row": False,
     },
 }
 
@@ -399,6 +416,23 @@ def temp_color(t):
     return "#f0483f"
 
 
+class RoundedPanel(QWidget):
+    """深色圆角弹出面板（用于透明度滑块）"""
+
+    def __init__(self, flags=Qt.WindowType.Popup):
+        super().__init__(None, flags)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        p.setBrush(QColor(27, 28, 32, 244))
+        p.setPen(QPen(QColor(74, 78, 88), 1))
+        p.drawRoundedRect(rect, 10, 10)
+
+
 class OutlineLabel(QLabel):
     """无背景模式下用「黑描边 + 实心字」绘制，保证在任意游戏画面上都读得清"""
 
@@ -476,6 +510,12 @@ class OverlayCard(QWidget):
         self.lbl_deg.setAlignment(Qt.AlignmentFlag.AlignBottom)
         row1.addWidget(self.lbl_temp)
         row1.addWidget(self.lbl_deg)
+
+        # 迷你模式专用：把热点/显存塞进同一行
+        self.lbl_inline = OutlineLabel("")
+        self.lbl_inline.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        row1.addWidget(self.lbl_inline)
+
         row1.addStretch(1)
         self.lbl_fan = OutlineLabel("--%")
         self.lbl_fan.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -544,10 +584,11 @@ class OverlayCard(QWidget):
             p.setBrush(QColor(255, 200, 87, 235))
             p.drawEllipse(QPoint(self.width() - 8, 8), 2.6, 2.6)
 
-    # ---- 尺寸 / 背景 / 纯文字三种视觉，统一在这里应用 ----
+    # ---- 尺寸 / 背景 / 纯文字，统一在这里应用 ----
     def _apply_visual_mode(self):
         mode = self._mode()
         no_bg = self.cfg.get("no_bg", False)
+        single = mode.get("single_row", False)
 
         lay = self.layout()
         lay.setContentsMargins(*mode["margins"])
@@ -556,35 +597,43 @@ class OverlayCard(QWidget):
         f = QFont("Segoe UI", mode["temp_pt"])
         f.setBold(True)
         self.lbl_temp.setFont(f)
-        self.lbl_temp.outline_px = mode["outline_px"]
         for lb, px in ((self.lbl_deg, mode["deg_px"]), (self.lbl_fan, mode["fan_px"]),
-                       (self.lbl_detail, mode["detail_px"])):
-            lb.outline_px = mode["outline_px"]
+                       (self.lbl_detail, mode["detail_px"]), (self.lbl_inline, mode["detail_px"])):
             fb = lb.font()
             fb.setPixelSize(px)
             lb.setFont(fb)
 
-        # 颜色透明度（无背景时用实色，配黑描边更清楚）
-        self.lbl_deg.setStyleSheet(
-            f"color: rgba(255,255,255,{1.0 if no_bg else 0.55}); background: transparent;")
-        self.lbl_fan.setStyleSheet(
-            f"color: rgba(255,255,255,{1.0 if no_bg else 0.72}); background: transparent;")
-        self.lbl_detail.setStyleSheet(
-            f"color: rgba(255,255,255,{0.92 if no_bg else 0.52}); background: transparent;")
+        # 文字颜色：无背景时全实色，有背景时略淡
+        deg_a = 1.0 if no_bg else 0.62
+        fan_a = 1.0 if no_bg else 0.78
+        detail_a = 0.94 if no_bg else 0.62
+        for lb, a in ((self.lbl_deg, deg_a), (self.lbl_fan, fan_a),
+                      (self.lbl_detail, detail_a), (self.lbl_inline, detail_a)):
+            lb.setStyleSheet(f"color: rgba(255,255,255,{a}); background: transparent;")
 
-        # 无背景时切换成「黑描边 + 实心字」，在明亮/复杂画面上也能看清
-        for lb in (self.lbl_temp, self.lbl_deg, self.lbl_fan, self.lbl_detail):
-            lb.outline = no_bg
+        # 统一使用「黑描边 + 实心字」：背景透明或有背景都清晰
+        for lb in (self.lbl_temp, self.lbl_deg, self.lbl_fan, self.lbl_detail, self.lbl_inline):
+            lb.outline = True
+            lb.outline_px = mode["outline_px"]
             lb.update()
-        self.lbl_deg.text_color = QColor(255, 255, 255, 210)
+        self.lbl_deg.text_color = QColor(255, 255, 255, 225)
         self.lbl_fan.text_color = QColor(255, 255, 255, 245)
         self.lbl_detail.text_color = QColor(255, 255, 255, 235)
+        self.lbl_inline.text_color = QColor(255, 255, 255, 225)
 
-        self.lbl_bar.setFixedHeight(mode["bar_h"])
-        # 无背景模式下不画占用率条（只剩一条孤立的色块，反而碍眼）
-        self.lbl_bar.setVisible(not no_bg and self.cfg.get("show_detail", True))
+        show_detail = self.cfg.get("show_detail", True)
+        self.lbl_deg.setAlignment(Qt.AlignmentFlag.AlignVCenter if single
+                                  else Qt.AlignmentFlag.AlignBottom)
+        self.lbl_inline.setVisible(single and show_detail)
+        self.lbl_detail.setVisible((not single) and show_detail)
+
+        self.lbl_bar.setFixedHeight(max(1, mode["bar_h"]))
+        # 迷你模式没有第二行，也没有占用条；无背景模式下也不画
+        self.lbl_bar.setVisible(mode["bar_h"] > 0 and not no_bg and show_detail)
 
         self.setFixedSize(*mode["size"])
+        if hasattr(self, "hint") and self.hint.isVisible():
+            self._flash(self.hint.text())
         self.update()
 
     def _toggle_no_bg(self):
@@ -606,7 +655,68 @@ class OverlayCard(QWidget):
         y = min(self.y(), screen.bottom() - self.height())
         self.move(max(screen.left(), x), max(screen.top(), y))
         self._save_pos()
-        self._flash("紧凑尺寸" if mode_name == "compact" else "标准尺寸")
+        self._flash({"mini": "迷你单行", "compact": "紧凑尺寸", "normal": "标准尺寸"}.get(mode_name, "已切换"))
+
+    # ---- 透明度滑块（不预设固定档位，30%~100% 连续可调）----
+    def _show_opacity_popup(self):
+        pop = getattr(self, "_opac_popup", None)
+        if pop is not None and pop.isVisible():
+            pop.close()
+            return
+
+        from PySide6.QtWidgets import QSlider
+        pop = RoundedPanel()
+        pop.setFixedWidth(206)
+
+        box = QVBoxLayout(pop)
+        box.setContentsMargins(12, 9, 12, 10)
+        box.setSpacing(6)
+
+        lbl = QLabel(f"背景不透明度  {int(round(self.cfg.get('opacity', 0.88) * 100))}%")
+        lbl.setStyleSheet("color: #eaeaea; font-size: 12px; background: transparent;")
+        box.addWidget(lbl)
+
+        sld = QSlider(Qt.Orientation.Horizontal, pop)
+        sld.setRange(0, 100)
+        sld.setValue(int(round(self.cfg.get("opacity", 0.88) * 100)))
+        sld.setStyleSheet(
+            "QSlider::groove:horizontal{height:6px;background:#3a3d45;border-radius:3px;}"
+            "QSlider::sub-page:horizontal{background:#48c78e;border-radius:3px;}"
+            "QSlider::handle:horizontal{width:14px;margin:-5px 0;border-radius:7px;"
+            "background:#ffffff;}")
+        box.addWidget(sld)
+
+        tip = QLabel("拖动即时生效，松开即保存")
+        tip.setStyleSheet("color: #8b9097; font-size: 10px; background: transparent;")
+        box.addWidget(tip)
+
+        def on_move(v):
+            self.cfg["opacity"] = v / 100.0
+            lbl.setText(f"背景不透明度  {v}%")
+            self.repaint()
+
+        def on_commit():
+            save_config(self.cfg)
+
+        sld.valueChanged.connect(on_move)
+        sld.sliderReleased.connect(on_commit)
+
+        pop._lbl = lbl
+        pop._sld = sld
+        self._opac_popup = pop
+        pop.adjustSize()
+
+        # 贴在卡片下方（下面放不下就放到上面）
+        g = self.frameGeometry()
+        sp = QGuiApplication.primaryScreen().availableGeometry()
+        h = pop.height()
+        y = g.bottom() + 6
+        if y + h > sp.bottom():
+            y = max(sp.top(), g.top() - h - 6)
+        x = min(max(sp.left(), g.left()), sp.right() - pop.width())
+        pop.move(x, y)
+        pop.show()
+        pop.raise_()
 
     # ---- 更新显示 ----
     def update_data(self, data, reader_name=None):
@@ -639,8 +749,11 @@ class OverlayCard(QWidget):
                 bits.append(f"{data['power']}W")
             if "load" in fields and data.get("load") is not None:
                 bits.append(f"负载 {data['load']}%")
-        self.lbl_detail.setText("  ".join(bits) if bits else self._reader_name)
-        self.lbl_detail.setVisible(self.cfg.get("show_detail", True))
+        text = "  ".join(bits) if bits else self._reader_name
+        self.lbl_detail.setText(text)
+        self.lbl_inline.setText(text.replace("  ", " "))
+        self.lbl_inline.setVisible(self._mode().get("single_row", False)
+                                   and self.cfg.get("show_detail", True))
 
         load = data.get("load") or 0
         w = int(self.width() * min(load, 100) / 100.0)
@@ -667,8 +780,8 @@ class OverlayCard(QWidget):
 
     def mouseDoubleClickEvent(self, e):
         self.cfg["show_detail"] = not self.cfg.get("show_detail", True)
-        self.lbl_detail.setVisible(self.cfg["show_detail"])
         save_config(self.cfg)
+        self._apply_visual_mode()
 
     def _save_pos(self):
         self.cfg["x"], self.cfg["y"] = self.x(), self.y()
@@ -705,13 +818,14 @@ class OverlayCard(QWidget):
         nb.triggered.connect(self._toggle_no_bg)
         op.addAction(nb)
         op.addSeparator()
-        for label, v in (("100%", 1.0), ("90%", 0.9), ("80%", 0.8), ("70%", 0.7)):
-            a = QAction(("✔ " if abs(self.cfg["opacity"] - v) < 0.03 else "") + label, menu)
-            a.triggered.connect(lambda _=False, vv=v: self._set_opacity(vv))
-            op.addAction(a)
+        sl = QAction(f"调节透明度（滑块）…  当前 {int(round(self.cfg.get('opacity', 0.88) * 100))}%", menu)
+        sl.triggered.connect(self._show_opacity_popup)
+        op.addAction(sl)
 
         sm = menu.addMenu("尺寸")
-        for label, key in (("紧凑（146×56）", "compact"), ("标准（212×100）", "normal")):
+        for label, key in (("迷你（单行 176×32）", "mini"),
+                           ("紧凑（168×58）", "compact"),
+                           ("标准（212×100）", "normal")):
             a = QAction(("✔ " if self.cfg.get("size_mode", "compact") == key else "") + label, menu)
             a.triggered.connect(lambda _=False, k=key: self._set_size_mode(k))
             sm.addAction(a)
