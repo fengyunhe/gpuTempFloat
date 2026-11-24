@@ -5,6 +5,12 @@
 
 ![预览](preview.png)
 
+中文 / English 两套文案，迷你模式对比：
+
+| 中文 | English |
+| --- | --- |
+| ![中文 迷你](preview_zh_mini.png) | ![English mini](preview_mini_en.png) |
+
 ## 快速开始
 
 1. 双击 `安装依赖.bat`（首次，创建 `%LOCALAPPDATA%\GpuTempFloat\venv` 并装 PySide6）
